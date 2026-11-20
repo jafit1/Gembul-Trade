@@ -90,10 +90,10 @@ class Engine:
                 ft_online = self.ft.online
                 await self.notifier(
                     f"⚡️ <b>GEMBUL AUTO-TRADE SCALPING AKTIF (SALDO UJI)</b>\n"
-                    f"🟣 <b>DEX Solana Scalping (1m/5m · Scan 2m):</b> "
+                    f"🟣 <b>DEX Solana Scalping (1m/5m · Poll 15s/2m):</b> "
                     f"<b>${p1.get('current_equity', 1000):,.2f}</b> ({p1.get('open_count', 0)} open · stake $10/slot)\n"
-                    f"🎯 Rule Scalp: SL ATR -5.5..-7.5% · TP1 +10% (jual 50%, BE +1.5%) · TP2 +20% · Time-stop 45m\n"
-                    f"⚙️ <b>CEX Freqtrade (1h GembulSwing):</b> {'🟢 Online' if ft_online else '⚪ Offline'}\n"
+                    f"🎯 Rule Scalp: SL ATR -5.2..-7.0% · BE@+6.5% (+0.3%) · TP1 +10% (jual 50%) · TP2 +20% · Stale 25m/45m\n"
+                    f"⚙️ <b>CEX Freqtrade (1h):</b> {'🟢 Online' if ft_online else '⚪ Offline'}\n"
                     f"📬 Semua sinyal OPEN/TP/CLOSE dikirim realtime ke chat ini."
                 )
             except Exception as exc:
@@ -170,7 +170,20 @@ class Engine:
             except Exception:
                 log.exception("cycle gagal")
             elapsed = time.time() - t0
-            await asyncio.sleep(max(1.0, self.s.loop_interval_sec - elapsed))
+            remaining = max(1.0, self.s.loop_interval_sec - elapsed)
+            while self._running and remaining > 16.0:
+                await asyncio.sleep(15.0)
+                remaining -= 15.0
+                try:
+                    open_cnt = await self.db.fetchone(
+                        "SELECT COUNT(*) AS n FROM shadow_positions WHERE status='open'"
+                    )
+                    if open_cnt and int(open_cnt["n"] or 0) > 0:
+                        await self.shadow.mark_and_exit()
+                except Exception as exc:
+                    log.debug("mid-cycle shadow mark failed: %s", exc)
+            if self._running and remaining > 0:
+                await asyncio.sleep(remaining)
         await self.stop()
 
     # ------------------------------------------------------------ one cycle
@@ -401,10 +414,11 @@ class Engine:
 
         sol_sigs = [s for s in signals if s.chain == "solana" and s.address]
         opened_count = 0
+        from gembul.core.shadow import _EQUITY_SYMBOLS
         for sig in sol_sigs:
-            # Remove generic symbols that collide with majors or ticker-indexing errors.
-            base = sig.symbol.split("/")[0].upper()
-            if base in {"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT", "TRUMP", "USD1", "USDC", "USDT"}:
+            # Remove generic symbols that collide with majors/stables or tokenized equities.
+            base = sig.symbol.split("/")[0].upper().lstrip("$")
+            if base in {"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT", "TRUMP", "USD1", "USDC", "USDT"} | _EQUITY_SYMBOLS:
                 continue
             for plan in ACTIVE_PLANS:
                 try:
@@ -671,11 +685,15 @@ class Engine:
             if tid and tid not in seen_open:
                 seen_open.add(tid)
                 changed_open = True
+                strat = t.get("strategy") or "Freqtrade"
+                side = "SHORT" if t.get("is_short") else "LONG"
+                lev = float(t.get("leverage") or 1.0)
+                lev_lbl = f" {lev:g}x" if lev > 1.01 else ""
                 await self.notifier(
-                    f"⚙️ <b>AUTO-TRADE CEX SALDO UJI (OPEN)</b>\n"
-                    f"📌 <b>Freqtrade 1h (GembulSwing)</b> · <b>{t.get('pair')}</b> (<code>#{tid}</code>)\n"
+                    f"⚙️ <b>AUTO-TRADE CEX SALDO UJI (OPEN {side}{lev_lbl})</b>\n"
+                    f"📌 <b>{strat} 1h</b> · <b>{t.get('pair')}</b> (<code>#{tid}</code>)\n"
                     f"💵 Stake Uji: <b>${float(t.get('stake_amount') or 0):.2f}</b> · Entry: <b>${float(t.get('open_rate') or 0):.4f}</b>\n"
-                    f"🏷️ Tag: <i>{t.get('enter_tag') or 'z20_snapback'}</i>"
+                    f"🏷️ Tag: <i>{t.get('enter_tag') or 'signal'}</i>"
                 )
 
         changed_closed = False
@@ -686,10 +704,12 @@ class Engine:
                 changed_closed = True
                 prof_abs = float(t.get("profit_abs") or 0.0)
                 prof_pct = float(t.get("profit_pct") or 0.0)
+                strat = t.get("strategy") or "Freqtrade"
+                side = "SHORT" if t.get("is_short") else "LONG"
                 icon = "🟢" if prof_abs >= 0 else "🔴"
                 await self.notifier(
-                    f"{icon} <b>AUTO-TRADE CEX SALDO UJI (CLOSED)</b>\n"
-                    f"📌 <b>Freqtrade 1h (GembulSwing)</b> · <b>{t.get('pair')}</b> (<code>#{tid}</code>)\n"
+                    f"{icon} <b>AUTO-TRADE CEX SALDO UJI (CLOSED {side})</b>\n"
+                    f"📌 <b>{strat} 1h</b> · <b>{t.get('pair')}</b> (<code>#{tid}</code>)\n"
                     f"🏷️ Exit: <i>{t.get('exit_reason') or 'closed'}</i>\n"
                     f"💵 Realized: <b>${prof_abs:+.2f}</b> (<b>{prof_pct:+.2f}%</b>)"
                 )

@@ -409,20 +409,23 @@ class MemeScanner:
             reasons.append("volume sepi")
 
         ch1 = f["chg_1h"]
-        if 2 <= ch1 <= 30:
+        if 0 <= ch1 <= 20:
             s += 0.18
-            reasons.append("momentum sehat")
-        elif ch1 > 45:
-            s -= 0.15
+            reasons.append("momentum 1h sehat")
+        elif 20 < ch1 <= 35:
+            s += 0.08
+            reasons.append("momentum lanjutan 1h")
+        elif ch1 > 35:
+            s -= 0.18
             reasons.append("overextended 1h")
-        elif ch1 < -15:
+        elif ch1 < 0:
             s -= 0.20
-            reasons.append("1h dump")
+            reasons.append("momentum 1h negatif")
 
         if f["chg_6h"] > 0:
             s += 0.08
             reasons.append("tren 6h positif")
-        elif f["chg_6h"] < -20:
+        elif f["chg_6h"] < -15:
             s -= 0.15
             reasons.append("tren 6h jatuh")
 
@@ -440,7 +443,7 @@ class MemeScanner:
 
         b5, s5 = f.get("buys_5m", 0), f.get("sells_5m", 0)
         if b5 + s5 >= 5:
-            if b5 >= s5 * 1.1:
+            if b5 >= s5 * 1.1 and f.get("chg_5m", 0) >= 0:
                 s += 0.10
                 reasons.append("beli 5m aktif")
             elif b5 < s5 * 0.8:
@@ -455,16 +458,19 @@ class MemeScanner:
         inflow = f.get("smart_money_inflow")
         if inflow is not None:
             if inflow > 500:
-                s += 0.15
+                s += 0.20
                 reasons.append("smart money akumulasi")
-            elif inflow < -500:
+            elif inflow > 0:
+                s += 0.10
+                reasons.append("smart money inflow")
+            elif inflow < -300:
                 s -= 0.22
                 reasons.append("smart money distribusi")
 
         fdv = f.get("fdv")
         if fdv and liq:
-            if fdv / liq > 55:
-                s -= 0.12
+            if fdv / liq > 45:
+                s -= 0.15
                 reasons.append("fdv jauh di atas likuiditas")
 
         return max(0.0, min(1.0, s)), reasons

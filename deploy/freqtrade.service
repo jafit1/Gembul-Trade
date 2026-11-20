@@ -1,5 +1,5 @@
 [Unit]
-Description=gembul freqtrade CEX engine (GembulSwing)
+Description=gembul freqtrade CEX engine (GembulFutures)
 After=network-online.target
 Wants=network-online.target
 
@@ -10,7 +10,7 @@ WorkingDirectory=/srv/gembul
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/srv/gembul/.venv/bin/freqtrade trade \
   --config /srv/gembul/freqtrade_strategy/config.json \
-  --strategy GembulSwing \
+  --strategy GembulFutures \
   --strategy-path /srv/gembul/freqtrade_strategy \
   --userdir /srv/gembul/ftuser \
   --logfile /srv/gembul/ftuser/logs/freqtrade.log

@@ -161,6 +161,77 @@ def test_multi_candidate_evaluation_and_be_stop_and_true_roi(tmp_path: Path):
         assert j["total"]["total_trades"] == 2
         assert j["total"]["win_trades"] == 2
 
+        # Filter checks: negative 1h, tokenized equity, low ATR, high roundtrip spread
+        sb._last_entry_ts.clear()
+        neg_1h = Signal(
+            strategy="meme", symbol="NEG1H/USD", score=0.8, venue=Venue.DEX,
+            chain="solana", address="Neg1hMint111111111111111111111111111111111", price=0.01,
+            features={**good_sig.features, "chg_1h": -1.5, "pool": "PoolNeg1h"},
+        )
+        assert await sb.consider("plan1", neg_1h) is False
+        ev_neg = await db.fetchone("SELECT reason FROM shadow_events WHERE symbol='NEG1H/USD' AND event='skip' ORDER BY id DESC LIMIT 1")
+        assert ev_neg["reason"] == "scalp_conditions_not_met"
+
+        sb._last_entry_ts.clear()
+        eq_sig = Signal(
+            strategy="meme", symbol="TTWO/USD", score=0.8, venue=Venue.DEX,
+            chain="solana", address="TtwoMint1111111111111111111111111111111111", price=0.01,
+            features={**good_sig.features, "pool": "PoolTtwo"},
+        )
+        assert await sb.consider("plan1", eq_sig) is False
+        ev_eq = await db.fetchone("SELECT reason FROM shadow_events WHERE symbol='TTWO/USD' AND event='skip' ORDER BY id DESC LIMIT 1")
+        assert ev_eq["reason"] == "tokenized_equity_excluded"
+
+        sb._last_entry_ts.clear()
+        dex.v.sell_out = 9_850_000  # 1.5% RT > 0.90% cap -> reject
+        rt_sig = Signal(
+            strategy="meme", symbol="WIDE/USD", score=0.8, venue=Venue.DEX,
+            chain="solana", address="WideMint1111111111111111111111111111111111", price=0.01,
+            features={**good_sig.features, "pool": "PoolWide"},
+        )
+        assert await sb.consider("plan1", rt_sig) is False
+        ev_rt = await db.fetchone("SELECT reason FROM shadow_events WHERE symbol='WIDE/USD' AND event='skip' ORDER BY id DESC LIMIT 1")
+        assert ev_rt["reason"] == "roundtrip_cost_too_high"
+
+        # Early breakeven lock at +6.5% peak before TP1 (+10%)
+        sb._last_entry_ts.clear()
+        dex.v.sell_out = 9_920_000
+        be_sig = Signal(
+            strategy="meme", symbol="BE65/USD", score=0.85, venue=Venue.DEX,
+            chain="solana", address="Be65Mint1111111111111111111111111111111111", price=0.01,
+            features={**good_sig.features, "pool": "PoolBe65"},
+        )
+        assert await sb.consider("plan1", be_sig) is True
+        dex.v.sell_out = 10_700_000  # +7% >= +6.5% -> lock SL at +0.3% while still stage 0
+        await sb.mark_and_exit()
+        pos_be = await db.fetchone("SELECT * FROM shadow_positions WHERE symbol='BE65/USD'")
+        assert pos_be["stage"] == 0
+        assert abs(pos_be["stop_loss"] - pos_be["entry_price"] * 1.003) < 1e-9
+
+        dex.v.sell_out = 10_010_000  # pullback below +0.3% -> closes with stop_loss_be
+        await sb.mark_and_exit()
+        pos_be_closed = await db.fetchone("SELECT * FROM shadow_positions WHERE symbol='BE65/USD'")
+        assert pos_be_closed["status"] == "closed"
+        ev_be = await db.fetchone("SELECT reason FROM shadow_events WHERE symbol='BE65/USD' AND event='exit' ORDER BY id DESC LIMIT 1")
+        assert ev_be["reason"] == "stop_loss_be"
+
+        # Fast 25m stale exit for dead flat trade (< +1.5% peak, mark < entry)
+        sb._last_entry_ts.clear()
+        dex.v.sell_out = 9_920_000
+        stale_sig = Signal(
+            strategy="meme", symbol="STALE25/USD", score=0.82, venue=Venue.DEX,
+            chain="solana", address="Stale25Mint1111111111111111111111111111111", price=0.01,
+            features={**good_sig.features, "pool": "PoolStale25"},
+        )
+        assert await sb.consider("plan1", stale_sig) is True
+        await db.execute("UPDATE shadow_positions SET opened_at=datetime('now','-26 minutes') WHERE symbol='STALE25/USD'")
+        dex.v.sell_out = 9_900_000  # below entry, never hit +1.5%
+        await sb.mark_and_exit()
+        pos_stale = await db.fetchone("SELECT * FROM shadow_positions WHERE symbol='STALE25/USD'")
+        assert pos_stale["status"] == "closed"
+        ev_stale = await db.fetchone("SELECT reason FROM shadow_events WHERE symbol='STALE25/USD' AND event='exit' ORDER BY id DESC LIMIT 1")
+        assert ev_stale["reason"] == "time_stop_stale_25m"
+
         await sb.close()
         await db.close()
 

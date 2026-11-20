@@ -25,8 +25,8 @@ if [ ! -f "config/.env" ]; then
 fi
 
 if [ ! -f "freqtrade_strategy/config.json" ]; then
-  echo "==> Creating freqtrade_strategy/config.json from template"
-  cp freqtrade_strategy/config.example.json freqtrade_strategy/config.json
+  echo "==> Creating freqtrade_strategy/config.json from Futures template (swap with config.example.json for Spot)"
+  cp freqtrade_strategy/config.futures.example.json freqtrade_strategy/config.json
   chmod 600 freqtrade_strategy/config.json
 fi
 
@@ -38,5 +38,5 @@ echo "Done! Next steps:"
 echo "  1. Edit ${APP_DIR}/config/.env with your Telegram/LLM/RPC/Exchange keys"
 echo "  2. Edit ${APP_DIR}/freqtrade_strategy/config.json (set jwt_secret_key & api_server password)"
 echo "  3. Test Gembul:    .venv/bin/python -m gembul run"
-echo "  4. Test Freqtrade: .venv/bin/freqtrade trade --config freqtrade_strategy/config.json --strategy GembulSwing --strategy-path freqtrade_strategy --userdir ftuser"
+echo "  4. Test Freqtrade: .venv/bin/freqtrade trade --config freqtrade_strategy/config.json --strategy GembulFutures --strategy-path freqtrade_strategy --userdir ftuser"
 echo "  5. Install systemd units from deploy/ (adjust User= and paths if needed)"

@@ -23,15 +23,15 @@
     {
       "scheme": "plan1",
       "status": "closed",
-      "n": 144,
-      "wins": 49,
-      "pnl_usd": -17.4643,
-      "avg_pct": -1.21
+      "n": 148,
+      "wins": 50,
+      "pnl_usd": -18.5717,
+      "avg_pct": -1.25
     },
     {
       "scheme": "plan1",
       "status": "open",
-      "n": 4,
+      "n": 1,
       "wins": 0,
       "pnl_usd": 0.0,
       "avg_pct": 0.0

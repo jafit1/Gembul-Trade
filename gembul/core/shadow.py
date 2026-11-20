@@ -6,6 +6,7 @@ $1,000 virtual book and identical $10 test clips to prevent cross-contamination.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -27,11 +28,17 @@ ACTIVE_PLANS = ("plan1",)
 INITIAL_EQUITY = 1000.0
 TEST_CLIP_USD = 10.0
 MAX_OPEN_PER_PLAN = 5
-MAX_ROUNDTRIP_COST_PCT = 1.5
-MAX_PRICE_IMPACT_PCT = 0.5
+MAX_ROUNDTRIP_COST_PCT = 0.90
+MAX_PRICE_IMPACT_PCT = 0.35
 LOSS_COOLDOWN_MINUTES = 90
 ANY_CLOSE_COOLDOWN_MINUTES = 45
 GT_API = "https://api.geckoterminal.com/api/v2"
+# Tokenized equities / dead-ATR synthetic stock wrappers excluded from DEX scalping
+_EQUITY_SYMBOLS = frozenset({
+    "TTWO", "GMEX", "AMC", "ANT", "STONK", "SPY", "SPYX", "QQQ", "QQQX",
+    "NVDAX", "TSLAX", "AAPLX", "GOOGLX", "AMZNX", "MSFTX", "METAX",
+    "COINX", "MSTRX", "HOODX", "CRCLX",
+})
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS shadow_runs (
@@ -286,6 +293,11 @@ class ShadowBook:
         if now - self._last_entry_ts.get(plan, 0.0) < 110.0:
             return False
 
+        sym_base = (sig.symbol or "").split("/")[0].upper().lstrip("$")
+        if sym_base in _EQUITY_SYMBOLS:
+            await self.record_skip(plan, sig, "tokenized_equity_excluded", {"symbol": sig.symbol})
+            return False
+
         features = sig.features or {}
         liq = float(features.get("liquidity_usd") or 0)
         vol24 = float(features.get("volume_24h") or 0)
@@ -363,9 +375,9 @@ class ShadowBook:
             await self.record_skip(plan, sig, f"fdv_liq_ratio_high:{fdv/liq:.1f}")
             return False
 
-        # Per-plan selection rules (Scalping primary)
+        # Per-plan selection rules (Scalping primary: empirically tuned for positive 1h flow & tight spread)
         if plan == "plan1":
-            if liq < 60_000 or not (-5.0 <= chg1 <= 35.0) or chg6 < -12.0 or buy_ratio < 1.05:
+            if liq < 60_000 or not (0.0 <= chg1 <= 35.0) or chg6 < -10.0 or buy_ratio < 1.08:
                 await self.record_skip(plan, sig, "scalp_conditions_not_met", {"liq": liq, "chg1": chg1, "chg6": chg6, "buy_ratio": round(buy_ratio, 2)})
                 return False
         elif plan == "plan2":
@@ -382,20 +394,20 @@ class ShadowBook:
         if ohlcv is None:
             await self.record_skip(plan, sig, "ohlcv_unavailable")
             return False
-        if ohlcv["rsi14"] < 40.0 or ohlcv["rsi14"] > 75.0:
+        if ohlcv["rsi14"] < 44.0 or ohlcv["rsi14"] > 68.0:
             await self.record_skip(plan, sig, "ohlcv_rsi_out_of_range", ohlcv)
+            return False
+        if ohlcv["atr_pct"] < 1.2 or ohlcv["atr_pct"] > 7.5:
+            await self.record_skip(plan, sig, "ohlcv_atr_out_of_range", ohlcv)
             return False
         if ohlcv["close"] < ohlcv["ema20"] * 0.985:
             await self.record_skip(plan, sig, "ohlcv_below_ema20", ohlcv)
             return False
-        if ohlcv["ext_pct"] > 15.0:
+        if ohlcv["ext_pct"] > 4.8:
             await self.record_skip(plan, sig, "ohlcv_overextended", ohlcv)
             return False
-        if ohlcv["vol_ratio"] < 0.45:
+        if ohlcv["vol_ratio"] < 0.55:
             await self.record_skip(plan, sig, "ohlcv_volume_drying", ohlcv)
-            return False
-        if chg1 < 0 and ohlcv.get("trend_up", 1.0) < 0.5 and ohlcv["rsi14"] < 46.0:
-            await self.record_skip(plan, sig, "ohlcv_pullback_not_stabilized", ohlcv)
             return False
         if ohlcv.get("ema9_1m_ok", 1.0) < 0.5:
             await self.record_skip(plan, sig, "ohlcv_1m_weak_or_overbought", ohlcv)
@@ -443,8 +455,8 @@ class ShadowBook:
         cfg = get_scheme(plan)
         sl_pct = cfg.stop_loss_pct
         if plan == "plan1" and ohlcv is not None:
-            # Tight ATR-scaled scalping stop (clears <=1.5% roundtrip + normal 5m noise)
-            sl_pct = max(5.5, min(7.5, round(ohlcv["atr_pct"] * 2.0, 2)))
+            # Tight ATR-scaled scalping stop (clears <=0.9% roundtrip + normal 5m noise without big gap bleed)
+            sl_pct = max(5.2, min(7.0, round(ohlcv["atr_pct"] * 1.9, 2)))
 
         stop = entry_price * (1.0 - sl_pct / 100.0)
         take = entry_price * (1.0 + cfg.take_profit_pct / 100.0)
@@ -495,22 +507,40 @@ class ShadowBook:
         return True
 
     async def mark_and_exit(self) -> None:
-        """Update virtual portfolios only when fresh full-size quotes are available."""
+        """Update virtual portfolios concurrently when fresh full-size quotes are available."""
         rows = await self.db.fetchall("SELECT * FROM shadow_positions WHERE status='open'")
+        if not rows:
+            return
         now_utc = datetime.now(timezone.utc)
-        for row in rows:
+        sem = asyncio.Semaphore(5)
+
+        async def _fetch_quote(row: Any) -> tuple[dict[str, Any], int, dict[str, Any] | None]:
+            chain, mint, qty = row["chain"], row["mint"], float(row["qty"])
+            meta = json.loads(row["meta"] or "{}")
+            decimals = int(meta.get("decimals") or 0)
+            async with sem:
+                try:
+                    venue = self.dex.venue(chain)
+                    if decimals <= 0:
+                        decimals = await venue.decimals(mint)
+                        meta["decimals"] = decimals
+                    raw_qty = int(round(qty * (10 ** decimals)))
+                    if raw_qty <= 0:
+                        return meta, decimals, None
+                    quote = await venue.quote(mint, get_chain(chain).usdc, raw_qty, slippage_bps=100)
+                    return meta, decimals, quote
+                except Exception as exc:
+                    log.debug("shadow prefetch failed for %s: %s", row["symbol"], exc)
+                    return meta, decimals, None
+
+        fetched = await asyncio.gather(*[_fetch_quote(r) for r in rows])
+
+        for row, (meta, decimals, quote) in zip(rows, fetched):
             plan, chain, mint = row["scheme"], row["chain"], row["mint"]
             qty, entry = float(row["qty"]), float(row["entry_price"])
+            if not quote:
+                continue
             try:
-                meta = json.loads(row["meta"] or "{}")
-                decimals = int(meta.get("decimals") or 0)
-                if decimals <= 0:
-                    decimals = await self.dex.venue(chain).decimals(mint)
-                    meta["decimals"] = decimals
-                raw_qty = int(round(qty * (10 ** decimals)))
-                if raw_qty <= 0:
-                    continue
-                quote = await self.dex.venue(chain).quote(mint, get_chain(chain).usdc, raw_qty, slippage_bps=100)
                 exit_usd = int(quote.get("outAmount") or 0) / 1e6
                 if exit_usd <= 0:
                     continue
@@ -528,7 +558,7 @@ class ShadowBook:
 
                 if plan == "plan1":
                     if mark <= stop_price:
-                        reason = "stop_loss_be" if stage >= 1 else "stop_loss"
+                        reason = "stop_loss_be" if (stage >= 1 or stop_price >= entry * 1.001) else "stop_loss"
                     elif stage == 0 and mark >= entry * 1.10:
                         reason, fraction, stage = "tp1_10pct_sell50", 0.50, 1
                         new_stop = max(stop_price, entry * 1.015)
@@ -538,6 +568,9 @@ class ShadowBook:
                         new_stop = max(stop_price, entry * 1.10)
                     elif stage >= 2 and mark <= peak * 0.95:
                         reason = "runner_trail_5pct"
+                    elif stage == 0 and peak >= entry * 1.065:
+                        # Early breakeven lock before TP1 so +6.5% winners do not turn into -7% SL
+                        new_stop = max(stop_price, entry * 1.003)
                 elif plan == "plan3":
                     if mark <= stop_price:
                         reason = "stop_loss_be" if stage >= 1 else "stop_loss"
@@ -562,7 +595,9 @@ class ShadowBook:
                     try:
                         opened_dt = datetime.fromisoformat(str(row["opened_at"]).replace(" ", "T")).replace(tzinfo=timezone.utc)
                         held_min = (now_utc - opened_dt).total_seconds() / 60.0
-                        if held_min >= cfg.max_hold_minutes and peak < entry * 1.04 and mark < entry * 1.015:
+                        if plan == "plan1" and held_min >= 25.0 and peak < entry * 1.015 and mark < entry:
+                            reason = "time_stop_stale_25m"
+                        elif held_min >= cfg.max_hold_minutes and peak < entry * 1.04 and mark < entry * 1.015:
                             reason = f"time_stop_stale_{int(cfg.max_hold_minutes)}m"
                     except Exception:
                         pass
@@ -570,7 +605,13 @@ class ShadowBook:
                 meta["last_quote_at"] = time.time()
                 meta["last_quote_out_usd"] = exit_usd
                 if not reason:
-                    await self.db.execute("UPDATE shadow_positions SET meta=? WHERE id=?", (json.dumps(meta), row["id"]))
+                    if new_stop > stop_price:
+                        await self.db.execute(
+                            "UPDATE shadow_positions SET stop_loss=?, meta=? WHERE id=?",
+                            (new_stop, json.dumps(meta), row["id"]),
+                        )
+                    else:
+                        await self.db.execute("UPDATE shadow_positions SET meta=? WHERE id=?", (json.dumps(meta), row["id"]))
                     continue
 
                 close_qty = qty * fraction

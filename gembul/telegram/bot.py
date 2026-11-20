@@ -388,9 +388,12 @@ class TelegramUI:
             pair = _esc(t.get("pair"))
             prof_pct = float(t.get("profit_pct") or 0.0)
             prof_abs = float(t.get("profit_abs") or 0.0)
+            side = "SHORT" if t.get("is_short") else "LONG"
+            lev = float(t.get("leverage") or 1.0)
+            lev_lbl = f" {lev:g}x" if lev > 1.01 else ""
             mark = "🟢" if prof_pct >= 0 else "🔴"
             lines.append(
-                f"{mark} <b>CEX #{t.get('trade_id')} {pair}</b> · ⚙️ Freqtrade 1h\n"
+                f"{mark} <b>CEX #{t.get('trade_id')} {pair}</b> [{side}{lev_lbl}] · ⚙️ {_esc(t.get('strategy') or 'Freqtrade')} 1h\n"
                 f"   💵 Stake: <b>${float(t.get('stake_amount') or 0):.2f}</b> · Entry: ${float(t.get('open_rate') or 0):.4f}\n"
                 f"   📈 uPnL: <b>{prof_pct:+.2f}%</b> (<b>${prof_abs:+.2f}</b>)\n"
             )
@@ -435,13 +438,14 @@ class TelegramUI:
             for t in ft_closed[:8]:
                 prof_pct = float(t.get("profit_pct") or 0.0)
                 prof_abs = float(t.get("profit_abs") or 0.0)
+                side = "S" if t.get("is_short") else "L"
                 icon = "🟢" if prof_abs > 0 else "🔴"
                 lines.append(
-                    f"{icon} <b>{_esc(t.get('pair'))}</b> <b>{prof_pct:+.2f}%</b> (${prof_abs:+.2f}) "
+                    f"{icon} <b>{_esc(t.get('pair'))}</b> [{side}] <b>{prof_pct:+.2f}%</b> (${prof_abs:+.2f}) "
                     f"· <i>{_esc(t.get('exit_reason'))}</i>"
                 )
         else:
-            lines.append("⚙️ <b>Binance CEX:</b> <i>Belum ada closed trade di dry-run 1h (menunggu sinyal z20_snapback).</i>")
+            lines.append("⚙️ <b>Binance CEX:</b> <i>Belum ada closed trade di dry-run 1h (menunggu setup LONG/SHORT).</i>")
 
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔄 Refresh Riwayat", callback_data="rf:history"),
