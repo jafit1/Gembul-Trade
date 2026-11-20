@@ -1,0 +1,19 @@
+[Unit]
+Description=gembul trading engine
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=boxd
+WorkingDirectory=/srv/gembul
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/srv/gembul/config/.env
+ExecStart=/srv/gembul/.venv/bin/python -m gembul run
+Restart=always
+RestartSec=10
+StandardOutput=append:/srv/gembul/logs/service.log
+StandardError=append:/srv/gembul/logs/service.err.log
+
+[Install]
+WantedBy=multi-user.target

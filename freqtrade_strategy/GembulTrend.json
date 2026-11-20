@@ -1,0 +1,38 @@
+{
+  "strategy_name": "GembulTrend",
+  "params": {
+    "roi": {
+      "0": 0.07,
+      "150": 0.035,
+      "480": 0.015,
+      "960": 0.0
+    },
+    "stoploss": {
+      "stoploss": -0.05
+    },
+    "trailing": {
+      "trailing_stop": true,
+      "trailing_stop_positive": 0.02,
+      "trailing_stop_positive_offset": 0.05,
+      "trailing_only_offset_is_reached": true
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "adx_min": 21,
+      "atr_ceiling": 2.8,
+      "entry_mode": "rsi_recovery",
+      "ext_max": 3.5,
+      "require_uptrend": false,
+      "rsi_floor": 44
+    },
+    "sell": {
+      "exit_on_structure": false,
+      "exit_on_trend_loss": false,
+      "rsi_ceiling": 88
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-11-08 03:22:17.251291+00:00"
+}

@@ -1,0 +1,67 @@
+[
+  {
+    "chain": "solana",
+    "address": "8aYuDgUbrn8giS2LPbYZp4YfcGbYhx9nNMqhfnrMc1Tu",
+    "label": "SmartWhale-8aYu",
+    "auto_copy": 1,
+    "copy_usd": 100.0,
+    "total_trades": 2135,
+    "wins": 0,
+    "losses": 0,
+    "pnl_usd": 0.0,
+    "last_active_at": "2026-11-13 02:30:20",
+    "created_at": "2026-11-09 06:12:03"
+  },
+  {
+    "chain": "solana",
+    "address": "GBvgTombJTNrLYQNqZs5r9et4zDCnVpSd291zk6PtL36",
+    "label": "SmartWhale-GBvg",
+    "auto_copy": 1,
+    "copy_usd": 100.0,
+    "total_trades": 116,
+    "wins": 0,
+    "losses": 0,
+    "pnl_usd": 0.0,
+    "last_active_at": "2026-11-13 02:20:16",
+    "created_at": "2026-11-09 06:12:03"
+  },
+  {
+    "chain": "solana",
+    "address": "6LYfrwR67XS8zJPxD2PTEHKocr3d2MBgkZX8umGTfw6E",
+    "label": "SmartWhale-6LYf",
+    "auto_copy": 1,
+    "copy_usd": 100.0,
+    "total_trades": 860,
+    "wins": 0,
+    "losses": 0,
+    "pnl_usd": 0.0,
+    "last_active_at": "2026-11-13 02:29:20",
+    "created_at": "2026-11-09 06:12:03"
+  },
+  {
+    "chain": "solana",
+    "address": "7iVCXQn4u6tiTEfNVqbWSEsRdEi69E9oYsSMiepuECwi",
+    "label": "SmartWhale-7iVC",
+    "auto_copy": 1,
+    "copy_usd": 100.0,
+    "total_trades": 1936,
+    "wins": 0,
+    "losses": 0,
+    "pnl_usd": 0.0,
+    "last_active_at": "2026-11-13 02:30:20",
+    "created_at": "2026-11-09 06:12:03"
+  },
+  {
+    "chain": "solana",
+    "address": "4srV1d77JZAEHmdaDctwNK4MvjVZ1KUusW5khXEawzE7",
+    "label": "SmartWhale-4srV",
+    "auto_copy": 1,
+    "copy_usd": 100.0,
+    "total_trades": 64,
+    "wins": 0,
+    "losses": 0,
+    "pnl_usd": 0.0,
+    "last_active_at": "2026-11-12 14:14:00",
+    "created_at": "2026-11-09 06:12:03"
+  }
+]

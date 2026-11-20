@@ -1,0 +1,17 @@
+[
+  {
+    "period": "daily",
+    "period_key": "2026-11-09",
+    "scheme": "all",
+    "total_trades": 16,
+    "win_trades": 0,
+    "loss_trades": 16,
+    "win_rate": 0.0,
+    "total_pnl_usd": -136.14,
+    "avg_pnl_pct": -8.51,
+    "best_trade": "WEALTH/USD (-6.1%)",
+    "worst_trade": "STONK/USD (-18.8%)",
+    "ai_summary": "**Evaluasi:**\n\n**Rencana 1 (TP Ladder)** — Gagal total: 16 trade, win rate 0%, rugi $136 (-13,6%). Ladder TP tak pernah tersentuh, entry jelek, house-money discipline tak berfungsi. Paling buruk.\n\n**Rencana 2 (Breakout)** & **Rencana 3 (Sniper)** — 0 trade, modal utuh $1.000. Disiplin menunggu sinyal bagus, tapi belum teruji: tidak ada peluang dieksekusi, jadi performa sebenarnya belum terbukti.\n\n**Kesimpulan:** Rencana 1 jelas kalah telak—agresif tapi merugikan. Dua skema lain unggul karena mempertahankan modal, meski statusnya \"belum diuji.\" Pemenang sementara: **Rencana 2 & 3 (seri)**, dengan syarat keduanya mengeksekusi benar saat sinyal muncul. Rencana 1 wajib direvisi atau dihentikan.",
+    "created_at": "2026-11-09 08:11:19"
+  }
+]

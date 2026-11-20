@@ -1,0 +1,74 @@
+mode: paper
+real_trading_enabled: false
+base_currency: USDT
+paper_equity_usd: 1000.0
+loop_interval_sec: 30
+log_level: INFO
+
+risk:
+  risk_per_trade_pct: 4.0
+  max_position_pct: 12.0
+  max_total_exposure_pct: 75.0
+  max_concurrent_positions: 7
+  daily_loss_limit_pct: 15.0
+  weekly_loss_limit_pct: 30.0
+  max_correlated_positions: 4
+  stop_loss_pct: 4.0
+  take_profit_pct: 20.0
+  trailing_activation_pct: 6.0
+  trailing_distance_pct: 2.5
+  max_slippage_bps: 300
+  min_liquidity_usd: 25000
+  kill_switch_cooldown_hours: 4
+
+meme:
+  enabled: true
+  max_position_usd: 150.0
+  allow_chains: [solana, base, bsc]
+  max_token_age_minutes: 720
+  min_holders: 30
+  max_top10_holder_pct: 65.0
+  max_buy_tax_pct: 8.0
+  max_sell_tax_pct: 8.0
+  require_lp_locked: true
+  require_no_mint_authority: true
+  require_honeypot_pass: true
+  cooldown_minutes_per_token: 45
+
+cex:
+  enabled: true
+  markets: [BTC/USDT, ETH/USDT, SOL/USDT]
+  max_leverage: 2.0
+  use_freqtrade: true
+
+telegram:
+  allowed_user_ids: []
+  poll_interval: 1.0
+
+llm:
+  enabled: true
+  base_url: https://tokenharbor.ai/v1
+  model: deepseek-v4.1-flash:free
+  models:
+    - deepseek-v4.1-flash:free
+    - deepseek-v4-flash:free
+    - mimo-v2.6-flash:free
+    - mimo-v2.5:free
+  # Isi lewat GEMBUL_LLM_API_KEY di config/.env (jangan hardcode di sini)
+  api_key: ""
+  temperature: 0.2
+  max_tokens: 1200
+  timeout: 30.0
+  cooldown_sec: 300
+  max_cooldown_sec: 1200
+
+venues:
+  freqtrade_url: http://127.0.0.1:8080
+  freqtrade_user: freqtrader
+  freqtrade_password: ""
+  # Override dengan RPC privat (mis. Helius) lewat GEMBUL_SOLANA_RPC di config/.env
+  solana_rpc: https://api.mainnet-beta.solana.com
+  jupiter_api: https://lite-api.jup.ag/swap/v1
+  zerox_api: https://api.0x.org
+  zerox_key: ""
+  odos_api: https://api.odos.xyz

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets & local runtime configs (NEVER commit these)
+.env
+.env.*
+config/.env
+freqtrade_strategy/config.json
+*.key
+*.pem
+
+# Runtime data, databases & logs
+data/
+logs/
+ftuser/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+*.tgz
+pip_freeze.txt

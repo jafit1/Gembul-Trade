@@ -1,0 +1,21 @@
+[Unit]
+Description=gembul freqtrade CEX engine (GembulSwing)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gembul
+WorkingDirectory=/srv/gembul
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/gembul/.venv/bin/freqtrade trade \
+  --config /srv/gembul/freqtrade_strategy/config.json \
+  --strategy GembulSwing \
+  --strategy-path /srv/gembul/freqtrade_strategy \
+  --userdir /srv/gembul/ftuser \
+  --logfile /srv/gembul/ftuser/logs/freqtrade.log
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
