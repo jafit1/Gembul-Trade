@@ -9,6 +9,8 @@ venv/
 # Secrets & local runtime configs (NEVER commit these)
 .env
 .env.*
+!.env.example
+!config/.env.example
 config/.env
 freqtrade_strategy/config.json
 *.key
